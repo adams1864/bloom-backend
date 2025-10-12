@@ -1,0 +1,14 @@
+/dist
+/node_modules
+/.env
+/.vscode
+/.idea
+.DS_Store
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+package-lock.json
+package.json.*
+yarn.lock
+ts
+llms.txt
