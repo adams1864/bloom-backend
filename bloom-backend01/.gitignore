@@ -12,3 +12,4 @@ package.json.*
 yarn.lock
 ts
 llms.txt
+_journal.json

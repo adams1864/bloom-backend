@@ -1,5 +1,5 @@
 import { mysqlTable, varchar, int, serial, text, timestamp, boolean } from "drizzle-orm/mysql-core";
-import { index, uniqueIndex } from "drizzle-orm/mysql-core";
+import { index, uniqueIndex, primaryKey } from "drizzle-orm/mysql-core";
 
 export const products = mysqlTable("products", {
   id: serial("id").primaryKey(),
@@ -17,6 +17,29 @@ export const products = mysqlTable("products", {
   image_2: varchar("image_2", { length: 255 }).default(""),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+export const bundles = mysqlTable("bundles", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  status: varchar("status", { length: 50 }).default("unpublished"),
+  coverImage: varchar("cover_image", { length: 255 }).default(""),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
+});
+
+export const bundleProducts = mysqlTable(
+  "bundle_products",
+  {
+    bundleId: int("bundle_id").notNull().references(() => bundles.id, { onDelete: "cascade" }),
+    productId: int("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.bundleId, table.productId] }),
+    bundleIdx: index("bundle_products_bundle_idx").on(table.bundleId),
+    productIdx: index("bundle_products_product_idx").on(table.productId),
+  })
+);
 
 export const users = mysqlTable(
   "users",
@@ -109,6 +132,8 @@ export const accounts = mysqlTable(
 
 export const databaseSchema = {
   products,
+  bundles,
+  bundleProducts,
   users,
   userEmails,
   userSessions,
