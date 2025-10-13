@@ -150,7 +150,10 @@ export const updateBundle = async (req: Request, res: Response) => {
   }
 
   if (req.body?.productIds !== undefined) {
-  const productIds = await filterExistingProductIds(parseProductIds(req.body.productIds));
+    const productIds = await filterExistingProductIds(
+      parseProductIds((req.body as any).productIds)
+    );
+
     await db.delete(bundleProducts).where(eq(bundleProducts.bundleId, id));
     if (productIds.length > 0) {
       const values = productIds.map((productId) => ({ bundleId: id, productId }));
@@ -171,4 +174,3 @@ export const deleteBundle = async (req: Request, res: Response) => {
   await db.delete(bundles).where(eq(bundles.id, id));
   return res.json({ message: "Bundle deleted" });
 };
-```}
