@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type RequestHandler } from "express";
 import fs from "fs";
 import path from "path";
 import multer from "multer";
@@ -22,10 +22,17 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+const maybeUploadCover: RequestHandler = (req, res, next) => {
+  if (req.is("multipart/form-data")) {
+    return upload.single("cover")(req, res, next);
+  }
+  next();
+};
+
 router.get("/", getBundles);
 router.get("/:id", getBundle);
-router.post("/", requireAuth, upload.single("cover"), createBundle);
-router.put("/:id", requireAuth, upload.single("cover"), updateBundle);
+router.post("/", requireAuth, maybeUploadCover, createBundle);
+router.put("/:id", requireAuth, maybeUploadCover, updateBundle);
 router.delete("/:id", requireAuth, deleteBundle);
 
 export default router;
