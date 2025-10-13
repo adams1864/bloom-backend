@@ -1,4 +1,4 @@
-import { mysqlTable, varchar, int, serial, text, timestamp, boolean } from "drizzle-orm/mysql-core";
+import { mysqlTable, varchar, int, serial, text, timestamp, boolean, bigint } from "drizzle-orm/mysql-core";
 import { index, uniqueIndex, primaryKey } from "drizzle-orm/mysql-core";
 
 export const products = mysqlTable("products", {
@@ -32,7 +32,7 @@ export const bundleProducts = mysqlTable(
   "bundle_products",
   {
     bundleId: int("bundle_id").notNull().references(() => bundles.id, { onDelete: "cascade" }),
-    productId: int("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+    productId: bigint("product_id", { mode: "number", unsigned: true }).notNull().references(() => products.id, { onDelete: "cascade" }),
   },
   (table) => ({
     pk: primaryKey({ columns: [table.bundleId, table.productId] }),
@@ -40,6 +40,18 @@ export const bundleProducts = mysqlTable(
     productIdx: index("bundle_products_product_idx").on(table.productId),
   })
 );
+
+export const orders = mysqlTable("orders", {
+  id: serial("id").primaryKey(),
+  orderNumber: varchar("order_number", { length: 64 }).notNull(),
+  customerName: varchar("customer_name", { length: 255 }).notNull(),
+  customerEmail: varchar("customer_email", { length: 255 }).notNull(),
+  status: varchar("status", { length: 50 }).default("pending"),
+  totalCents: int("total_cents").default(0),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
+});
 
 export const users = mysqlTable(
   "users",
@@ -134,6 +146,7 @@ export const databaseSchema = {
   products,
   bundles,
   bundleProducts,
+  orders,
   users,
   userEmails,
   userSessions,

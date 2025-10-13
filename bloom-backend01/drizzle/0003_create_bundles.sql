@@ -11,7 +11,7 @@ CREATE TABLE `bundles` (
 
 CREATE TABLE `bundle_products` (
   `bundle_id` int NOT NULL,
-  `product_id` int NOT NULL,
+  `product_id` bigint unsigned NOT NULL,
   PRIMARY KEY (`bundle_id`, `product_id`),
   KEY `bundle_products_bundle_idx` (`bundle_id`),
   KEY `bundle_products_product_idx` (`product_id`),
