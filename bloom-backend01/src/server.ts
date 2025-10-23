@@ -17,4 +17,5 @@ app.use("/api/products", productRoutes);
 app.use("/api/bundles", bundleRoutes);
 app.use("/api/orders", orderRoutes);
 
-app.listen(4000, () => console.log("🚀 Server running on port 4000"));
+const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
+app.listen(PORT, () => console.log(`Server running → http://localhost:${PORT}`));
