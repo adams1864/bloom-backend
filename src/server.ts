@@ -1,13 +1,17 @@
 import express from "express";
+import cors from "cors";
 import productRoutes from "./routes/product.routes.js";
 import bundleRoutes from "./routes/bundle.routes.js";
 import orderRoutes from "./routes/order.routes.js";
 import authRoutes from "./auth/auth.routes.js";
 import dotenv from "dotenv";
 
+import cors from "cors";
+
 dotenv.config();
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 // serve uploads
 app.use("/uploads", express.static("./uploads"));
