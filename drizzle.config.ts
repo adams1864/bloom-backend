@@ -1,9 +1,18 @@
-import "dotenv/config";
 import { defineConfig } from "drizzle-kit";
+import fs from "fs";
 
-console.log("DATABASE_URL:", process.env.DATABASE_URL);
+const envFileContent = fs.readFileSync(".env", "utf-8");
+const envConfig = Object.fromEntries(
+  envFileContent.split("\n").map((line) => {
+    const [key, ...value] = line.split("=");
+    // remove carriage return from value
+    const cleanValue = value.join("=").replace(/\r/g, "");
+    return [key, cleanValue];
+  })
+);
 
-const dialect = process.env.DB_DIALECT === "mysql" ? "mysql" : "postgresql";
+const databaseUrl = envConfig["DATABASE_URL"];
+const dialect = envConfig["DB_DIALECT"] === "mysql" ? "mysql" : "postgresql";
 const out = dialect === "mysql" ? "./drizzle-mysql" : "./drizzle";
 
 export default defineConfig({
@@ -11,6 +20,6 @@ export default defineConfig({
   out: out,
   dialect: dialect,
   dbCredentials: {
-    url: process.env.DATABASE_URL!,
+    url: databaseUrl!,
   },
 });
