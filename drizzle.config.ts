@@ -1,6 +1,9 @@
 import { defineConfig } from "drizzle-kit";
 import fs from "fs";
 
+// Check if the command is 'generate'
+const isGenerate = process.argv.includes("generate");
+
 const envFileContent = fs.readFileSync(".env", "utf-8");
 const envConfig = Object.fromEntries(
   envFileContent.split("\n").map((line) => {
@@ -19,7 +22,7 @@ export default defineConfig({
   schema: "./src/db/schema.ts",
   out: out,
   dialect: dialect,
-  dbCredentials: {
+  dbCredentials: isGenerate ? undefined : {
     url: databaseUrl!,
   },
 });
