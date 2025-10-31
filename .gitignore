@@ -13,3 +13,4 @@ yarn.lock
 ts
 llms.txt
 _journal.json
+/bloom-backend01
