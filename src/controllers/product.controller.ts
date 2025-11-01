@@ -38,6 +38,18 @@ function normalizeStatus(value: unknown): "published" | "unpublished" | "archive
   return "unpublished";
 }
 
+function normalizePriceInput(value: unknown): number {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return NaN;
+  }
+  return Math.round(numeric * 100) / 100;
+}
+
+function formatPriceForDb(price: number): string {
+  return price.toFixed(2);
+}
+
 function normalizeMediaPath(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -83,6 +95,11 @@ export function mapProductRow(row: ProductRow) {
   const image1 = normalizeMediaPath(row.image1);
   const image2 = normalizeMediaPath(row.image2);
 
+  const numericPriceRaw = typeof row.price === "string" ? Number(row.price) : row.price;
+  const price = Number.isFinite(numericPriceRaw)
+    ? Math.round(Number(numericPriceRaw) * 100) / 100
+    : 0;
+
   const images = [coverImage, image1, image2].filter(Boolean) as string[];
   const colorRaw = typeof row.color === "string" ? normalizeColor(row.color) : "";
   const colorValues = colorRaw ? colorRaw.split(",").filter(Boolean) : [];
@@ -95,7 +112,7 @@ export function mapProductRow(row: ProductRow) {
     category: row.category ?? "",
     size: row.size ?? "",
     gender: row.gender ?? "",
-    price: row.price,
+  price,
     stock: row.stock ?? 0,
     status: row.status ?? "unpublished",
     coverImage: coverImage ?? PLACEHOLDER_IMAGE,
@@ -212,9 +229,9 @@ export const getProduct = async (req: Request, res: Response) => {
 export const createProduct = async (req: Request, res: Response) => {
   const payload = req.body ?? {};
   const name = typeof payload.name === "string" ? payload.name.trim() : "";
-  const price = Number((payload as Record<string, unknown>).price);
+  const price = normalizePriceInput((payload as Record<string, unknown>).price);
 
-  if (!name || !Number.isFinite(price)) {
+  if (!name || Number.isNaN(price)) {
     return res.status(400).json({ message: "Missing required fields: name or price" });
   }
 
@@ -242,7 +259,7 @@ export const createProduct = async (req: Request, res: Response) => {
     size,
     gender,
     color,
-    price: price,
+  price: formatPriceForDb(price),
     stock: Number.isFinite(stock) ? stock : 0,
     status,
     coverImage,
@@ -284,11 +301,11 @@ export const updateProduct = async (req: Request, res: Response) => {
   if (typeof payload.size === "string") updates.size = payload.size.trim();
   if (typeof payload.gender === "string") updates.gender = payload.gender.trim();
   if (payload.price !== undefined) {
-    const price = Number((payload as Record<string, unknown>).price);
-    if (!Number.isFinite(price)) {
+    const priceValue = normalizePriceInput((payload as Record<string, unknown>).price);
+    if (Number.isNaN(priceValue)) {
       return res.status(400).json({ message: "Price must be a valid number" });
     }
-    updates.price = price;
+    updates.price = formatPriceForDb(priceValue);
   }
   if (payload.stock !== undefined) {
     const stock = Number((payload as Record<string, unknown>).stock);

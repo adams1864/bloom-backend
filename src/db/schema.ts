@@ -8,6 +8,7 @@ import {
   primaryKey,
   index,
   uniqueIndex,
+  decimal,
 } from "drizzle-orm/mysql-core";
 
 export const products = mysqlTable("products", {
@@ -18,7 +19,7 @@ export const products = mysqlTable("products", {
   size: varchar("size", { length: 50 }).default(""),
   gender: varchar("gender", { length: 50 }).default(""),
   color: varchar("color", { length: 100 }).default(""),
-  price: int("price").notNull(),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   stock: int("stock").default(0),
   status: varchar("status", { length: 50 }).default("unpublished"),
   coverImage: varchar("cover_image", { length: 255 }).default(""),

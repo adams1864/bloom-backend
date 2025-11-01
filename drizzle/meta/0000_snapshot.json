@@ -30,7 +30,7 @@
         },
         "price": {
           "name": "price",
-          "type": "int",
+          "type": "decimal(10,2)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
