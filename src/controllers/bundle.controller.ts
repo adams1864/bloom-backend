@@ -24,7 +24,7 @@ interface BundlePayload {
   productIds?: number[];
 }
 
-const PLACEHOLDER_BUNDLE_IMAGE = "/uploads/placeholder.png";
+const PLACEHOLDER_BUNDLE_IMAGE = "https://placehold.co/600x800?text=No+Image";
 
 const SORTABLE_COLUMNS = {
   createdAt: bundles.createdAt,
@@ -189,9 +189,47 @@ async function attachProducts(bundleList: BundleRow[]): Promise<BundleWithProduc
 }
 
 export const getBundles = async (req: Request, res: Response) => {
-  const rows = await db.select().from(bundles).orderBy(bundles.createdAt);
-  const withProducts = await attachProducts(rows);
-  res.json(withProducts);
+  const page = parseNumericQuery(req.query.page, 1);
+  const perPageRaw = parseNumericQuery(req.query.perPage, 12);
+  const perPage = Math.min(perPageRaw, 100);
+  const offset = (page - 1) * perPage;
+
+  const sortKey =
+    typeof req.query.sort === "string" && req.query.sort in SORTABLE_COLUMNS
+      ? (req.query.sort as keyof typeof SORTABLE_COLUMNS)
+      : "createdAt";
+  const sortOrder = req.query.order === "asc" ? "asc" : "desc";
+  const sortColumn = SORTABLE_COLUMNS[sortKey];
+
+  const whereClause = buildFilters(req.query);
+
+  const countQuery = db.select({ value: sql<number>`count(*)` }).from(bundles);
+  if (whereClause) {
+    countQuery.where(whereClause);
+  }
+  const totalRows = await countQuery;
+  const total = totalRows[0]?.value ?? 0;
+
+  const query = db.select().from(bundles);
+  if (whereClause) {
+    query.where(whereClause);
+  }
+  query.orderBy(sortOrder === "asc" ? asc(sortColumn) : desc(sortColumn));
+  query.limit(perPage).offset(offset);
+
+  const rows = await query;
+  const withProducts = await attachProducts(rows as BundleRow[]);
+  const data = withProducts.map(mapBundleRow);
+
+  res.json({
+    data,
+    meta: {
+      page,
+      perPage,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / perPage)),
+    },
+  });
 };
 
 export const getBundle = async (req: Request, res: Response) => {
@@ -201,22 +239,22 @@ export const getBundle = async (req: Request, res: Response) => {
   const row = await db.select().from(bundles).where(eq(bundles.id, id)).limit(1);
   if (row.length === 0) return res.status(404).json({ message: "Bundle not found" });
 
-  const [bundle] = await attachProducts(row);
-  res.json(bundle);
+  const [bundle] = await attachProducts(row as BundleRow[]);
+  if (!bundle) {
+    return res.status(404).json({ message: "Bundle not found" });
+  }
+
+  res.json({ bundle: mapBundleRow(bundle) });
 };
 
 export const createBundle = async (req: Request, res: Response) => {
   const payload = req.body as BundlePayload;
   const title = typeof payload.title === "string" ? payload.title.trim() : undefined;
   const description = typeof payload.description === "string" ? payload.description.trim() : undefined;
-  const normalizedStatus = payload.status === "published" ? "published" : "unpublished";
+  const normalizedStatus = normalizeStatus(payload.status);
 
-  const coverFile = (req as any).file;
-  const coverImage = coverFile
-    ? `/uploads/${path.basename(coverFile.path)}`
-    : typeof payload.coverImage === "string"
-      ? payload.coverImage.trim()
-      : "";
+  const coverFile = (req as { file?: Express.Multer.File }).file ?? null;
+  const coverImage = resolveUploadedPath(coverFile) ?? normalizeMediaPath(payload.coverImage) ?? "";
 
   const rawProductInput =
     (req.body as any).productIds ??
@@ -263,8 +301,12 @@ export const createBundle = async (req: Request, res: Response) => {
       return res.status(500).json({ message: "Failed to create bundle" });
     }
 
-    const [withProducts] = await attachProducts([bundle]);
-    return res.status(201).json({ message: "Bundle created", bundle: withProducts });
+    const [withProducts] = await attachProducts([bundle as BundleRow]);
+    if (!withProducts) {
+      return res.status(201).json({ message: "Bundle created" });
+    }
+
+    return res.status(201).json({ message: "Bundle created", bundle: mapBundleRow(withProducts) });
   } catch (error) {
     console.error("Failed to create bundle", error);
     return res.status(500).json({ message: "Failed to create bundle" });
@@ -283,13 +325,14 @@ export const updateBundle = async (req: Request, res: Response) => {
 
   if (typeof payload.title === "string") updates.title = payload.title.trim();
   if (typeof payload.description === "string") updates.description = payload.description.trim();
-  if (typeof payload.status === "string") updates.status = payload.status === "published" ? "published" : "unpublished";
+  if (payload.status !== undefined) updates.status = normalizeStatus(payload.status);
 
-  const cover = (req as any).file;
-  if (cover) {
-    updates.coverImage = `/uploads/${path.basename(cover.path)}`;
+  const cover = (req as { file?: Express.Multer.File }).file ?? null;
+  const uploadedCover = resolveUploadedPath(cover);
+  if (uploadedCover) {
+    updates.coverImage = uploadedCover;
   } else if (typeof payload.coverImage === "string") {
-    updates.coverImage = payload.coverImage;
+    updates.coverImage = normalizeMediaPath(payload.coverImage) ?? "";
   }
 
   if (Object.keys(updates).length > 0) {
@@ -326,8 +369,12 @@ export const updateBundle = async (req: Request, res: Response) => {
   }
 
   const updated = await db.select().from(bundles).where(eq(bundles.id, id)).limit(1);
-  const [withProducts] = await attachProducts(updated);
-  res.json({ message: "Bundle updated", bundle: withProducts });
+  const [withProducts] = await attachProducts(updated as BundleRow[]);
+  if (!withProducts) {
+    return res.json({ message: "Bundle updated" });
+  }
+
+  res.json({ message: "Bundle updated", bundle: mapBundleRow(withProducts) });
 };
 
 export const deleteBundle = async (req: Request, res: Response) => {
@@ -336,5 +383,5 @@ export const deleteBundle = async (req: Request, res: Response) => {
 
   await db.delete(bundleProducts).where(eq(bundleProducts.bundleId, id));
   await db.delete(bundles).where(eq(bundles.id, id));
-  return res.json({ message: "Bundle deleted" });
+  return res.status(204).send();
 };

@@ -18,7 +18,7 @@ const COLOR_HEX_MAP: Record<string, string> = {
   gray: "#6b7280",
 };
 
-const PLACEHOLDER_IMAGE = "/uploads/placeholder.png";
+const PLACEHOLDER_IMAGE = "https://placehold.co/600x800?text=No+Image";
 
 const SORTABLE_COLUMNS = {
   createdAt: products.createdAt,
