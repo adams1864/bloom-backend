@@ -1,8 +1,20 @@
-import type { Request, Response } from "express";
 import path from "path";
-import { inArray, eq } from "drizzle-orm";
+import type { Request, Response } from "express";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  like,
+  sql,
+  type InferSelectModel,
+} from "drizzle-orm";
 import { db } from "../db/index.js";
 import { bundles, bundleProducts, products } from "../db/schema.js";
+import { mapProductRow } from "./product.controller.js";
+
+type BundleRow = InferSelectModel<typeof bundles>;
 
 interface BundlePayload {
   title?: string;
@@ -10,6 +22,34 @@ interface BundlePayload {
   status?: string;
   coverImage?: string;
   productIds?: number[];
+}
+
+const PLACEHOLDER_BUNDLE_IMAGE = "/uploads/placeholder.png";
+
+const SORTABLE_COLUMNS = {
+  createdAt: bundles.createdAt,
+  title: bundles.title,
+  status: bundles.status,
+} as const;
+
+function parseNumericQuery(value: unknown, fallback: number): number {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
+}
+
+function normalizeStatus(value: unknown): "published" | "unpublished" {
+  return value === "published" ? "published" : "unpublished";
+}
+
+function normalizeMediaPath(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function resolveUploadedPath(file?: Express.Multer.File | null): string | null {
+  if (!file) return null;
+  return `/uploads/${path.basename(file.path)}`;
 }
 
 function parseProductIds(value: unknown): number[] {
@@ -77,7 +117,47 @@ function extractInsertId(result: unknown): number | null {
   return null;
 }
 
-async function attachProducts(bundleList: any[]) {
+type BundleWithProducts = BundleRow & {
+  products: ReturnType<typeof mapProductRow>[];
+  productIds: number[];
+};
+
+function buildFilters(query: Request["query"]) {
+  const conditions = [] as any[];
+  const search = typeof query.search === "string" ? query.search.trim() : "";
+  const status = typeof query.status === "string" ? query.status.trim() : "";
+
+  if (search) {
+    conditions.push(like(bundles.title, `%${search}%`));
+  }
+
+  if (status && ["published", "unpublished"].includes(status)) {
+    conditions.push(eq(bundles.status, status as any));
+  }
+
+  if (conditions.length === 0) return undefined;
+  if (conditions.length === 1) return conditions[0];
+  return and(...conditions);
+}
+
+function mapBundleRow(row: BundleWithProducts) {
+  const coverImage = normalizeMediaPath(row.coverImage);
+  const bundleImage = coverImage ?? PLACEHOLDER_BUNDLE_IMAGE;
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description ?? "",
+    status: row.status ?? "unpublished",
+    coverImage: bundleImage,
+    bundleImage,
+    productIds: row.productIds,
+    products: row.products,
+    createdAt: row.createdAt ? row.createdAt.toISOString() : null,
+    updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
+  };
+}
+
+async function attachProducts(bundleList: BundleRow[]): Promise<BundleWithProducts[]> {
   if (bundleList.length === 0) return [];
 
   const ids = bundleList.map((bundle) => bundle.id);
@@ -90,18 +170,22 @@ async function attachProducts(bundleList: any[]) {
     .leftJoin(products, eq(bundleProducts.productId, products.id))
     .where(inArray(bundleProducts.bundleId, ids));
 
-  const grouped = new Map<number, any[]>();
+  const grouped = new Map<number, ReturnType<typeof mapProductRow>[]>();
   rows.forEach((row) => {
     if (!row.product) return;
     const list = grouped.get(row.bundleId) ?? [];
-    list.push(row.product);
+    list.push(mapProductRow(row.product));
     grouped.set(row.bundleId, list);
   });
 
-  return bundleList.map((bundle) => ({
-    ...bundle,
-    products: grouped.get(bundle.id) ?? [],
-  }));
+  return bundleList.map((bundle) => {
+    const productsForBundle = grouped.get(bundle.id) ?? [];
+    return {
+      ...bundle,
+      products: productsForBundle,
+      productIds: productsForBundle.map((product) => product.id),
+    } satisfies BundleWithProducts;
+  });
 }
 
 export const getBundles = async (req: Request, res: Response) => {
