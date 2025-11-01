@@ -9,10 +9,11 @@ import {
   index,
   uniqueIndex,
   decimal,
+  bigint,
 } from "drizzle-orm/mysql-core";
 
 export const products = mysqlTable("products", {
-  id: int("id").autoincrement().primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   category: varchar("category", { length: 100 }).default(""),
@@ -46,7 +47,7 @@ export const bundleProducts = mysqlTable(
     bundleId: int("bundle_id")
       .notNull()
       .references(() => bundles.id, { onDelete: "cascade" }),
-    productId: int("product_id")
+    productId: bigint("product_id", { mode: "number", unsigned: true })
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
   },

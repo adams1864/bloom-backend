@@ -90,6 +90,20 @@ function mapColorSwatches(value: string | null): { name: string; hex: string }[]
     });
 }
 
+export function toIsoString(input: unknown): string | null {
+  if (!input) return null;
+  if (input instanceof Date) {
+    return input.toISOString();
+  }
+  if (typeof input === "string" || typeof input === "number") {
+    const date = new Date(input);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toISOString();
+    }
+  }
+  return null;
+}
+
 export function mapProductRow(row: ProductRow) {
   const coverImage = normalizeMediaPath(row.coverImage);
   const image1 = normalizeMediaPath(row.image1);
@@ -122,7 +136,7 @@ export function mapProductRow(row: ProductRow) {
     color: colorRaw,
     colorValues,
     colors: colorSwatches,
-    createdAt: row.createdAt ? row.createdAt.toISOString() : null,
+    createdAt: toIsoString(row.createdAt),
   };
 }
 
@@ -252,33 +266,42 @@ export const createProduct = async (req: Request, res: Response) => {
   const image1 = resolveUploadedPath(imageFile1) ?? normalizeMediaPath(payload.image1) ?? "";
   const image2 = resolveUploadedPath(imageFile2) ?? normalizeMediaPath(payload.image2) ?? "";
 
-  const insertResult = await db.insert(products).values({
-    name,
-    description,
-    category,
-    size,
-    gender,
-    color,
-  price: formatPriceForDb(price),
-    stock: Number.isFinite(stock) ? stock : 0,
-    status,
-    coverImage,
-    image1,
-    image2,
-  });
+  try {
+    const insertResult = await db.insert(products).values({
+      name,
+      description,
+      category,
+      size,
+      gender,
+      color,
+      price: formatPriceForDb(price),
+      stock: Number.isFinite(stock) ? stock : 0,
+      status,
+      coverImage,
+      image1,
+      image2,
+    });
 
-  const insertId = extractInsertId(insertResult);
-  if (!insertId) {
-    return res.status(201).json({ message: "Product created" });
+    const insertId = extractInsertId(insertResult);
+    if (!insertId) {
+      return res.status(201).json({ message: "Product created" });
+    }
+
+    const rows = await db.select().from(products).where(eq(products.id, insertId)).limit(1);
+    if (rows.length === 0) {
+      return res.status(201).json({ message: "Product created" });
+    }
+
+    const productRow = rows[0]!;
+    res.status(201).json({ message: "Product created", product: mapProductRow(productRow) });
+  } catch (error) {
+    console.error("Failed to create product", error);
+    const message =
+      error instanceof Error && typeof error.message === "string"
+        ? error.message
+        : "Failed to create product";
+    res.status(500).json({ message });
   }
-
-  const rows = await db.select().from(products).where(eq(products.id, insertId)).limit(1);
-  if (rows.length === 0) {
-    return res.status(201).json({ message: "Product created" });
-  }
-
-  const productRow = rows[0]!;
-  res.status(201).json({ message: "Product created", product: mapProductRow(productRow) });
 };
 
 export const updateProduct = async (req: Request, res: Response) => {

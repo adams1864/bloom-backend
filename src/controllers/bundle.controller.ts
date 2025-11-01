@@ -12,7 +12,7 @@ import {
 } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { bundles, bundleProducts, products } from "../db/schema.js";
-import { mapProductRow } from "./product.controller.js";
+import { mapProductRow, toIsoString } from "./product.controller.js";
 
 type BundleRow = InferSelectModel<typeof bundles>;
 
@@ -152,8 +152,8 @@ function mapBundleRow(row: BundleWithProducts) {
     bundleImage,
     productIds: row.productIds,
     products: row.products,
-    createdAt: row.createdAt ? row.createdAt.toISOString() : null,
-    updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
+    createdAt: toIsoString(row.createdAt),
+    updatedAt: toIsoString(row.updatedAt),
   };
 }
 
