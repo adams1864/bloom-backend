@@ -245,16 +245,28 @@ export const createProduct = async (req: Request, res: Response) => {
   const name = typeof payload.name === "string" ? payload.name.trim() : "";
   const price = normalizePriceInput((payload as Record<string, unknown>).price);
 
-  if (!name || Number.isNaN(price)) {
-    return res.status(400).json({ message: "Missing required fields: name or price" });
+  if (!name) {
+    return res.status(400).json({ message: "Missing required field: name" });
+  }
+
+  if (Number.isNaN(price) || price <= 0) {
+    return res.status(400).json({ message: "Price must be a positive number" });
+  }
+
+  const stock = Number((payload as Record<string, unknown>).stock ?? 0);
+  if (!Number.isFinite(stock) || stock < 0) {
+    return res.status(400).json({ message: "Stock must be a non-negative number" });
+  }
+
+  const status = normalizeStatus(payload.status);
+  if (!["published", "unpublished", "archived"].includes(status)) {
+    return res.status(400).json({ message: "Invalid status value" });
   }
 
   const description = typeof payload.description === "string" ? payload.description.trim() : "";
   const category = typeof payload.category === "string" ? payload.category.trim() : "";
   const size = typeof payload.size === "string" ? payload.size.trim() : "";
   const gender = typeof payload.gender === "string" ? payload.gender.trim() : "";
-  const stock = Number((payload as Record<string, unknown>).stock ?? 0);
-  const status = normalizeStatus(payload.status);
   const color = normalizeColor((payload as Record<string, unknown>).color ?? []);
 
   const files = (req.files ?? {}) as Record<string, Express.Multer.File[]>;
@@ -275,7 +287,7 @@ export const createProduct = async (req: Request, res: Response) => {
       gender,
       color,
       price: formatPriceForDb(price),
-      stock: Number.isFinite(stock) ? stock : 0,
+      stock,
       status,
       coverImage,
       image1,

@@ -95,8 +95,7 @@ export const userEmails = mysqlTable(
   "user_emails",
   {
     id: varchar("id", { length: 64 }).primaryKey(),
-    userId: varchar("user_id", { length: 64 }).notNull(),
-    email: varchar("email", { length: 191 }).notNull(),
+userId: varchar("user_id", { length: 64 }).notNull().references(() => users.id, { onDelete: "cascade" }),
     verified: boolean("verified").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow(),
   },
