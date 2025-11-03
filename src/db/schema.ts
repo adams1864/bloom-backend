@@ -180,12 +180,6 @@ export const databaseSchema = {
   users,
   userEmails,
   userSessions,
-  emailVerifications,
+emailVerifications,
   accounts,
-  user_sessions: userSessions,
-  email_verifications: emailVerifications,
-  user: users,
-  session: userSessions,
-  verification: emailVerifications,
-  account: accounts,
 };
