@@ -10,6 +10,7 @@ import {
   uniqueIndex,
   decimal,
   bigint,
+  mysqlEnum,
 } from "drizzle-orm/mysql-core";
 
 export const products = mysqlTable("products", {
@@ -21,8 +22,7 @@ export const products = mysqlTable("products", {
   gender: varchar("gender", { length: 50 }).default(""),
   color: varchar("color", { length: 100 }).default(""),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  stock: int("stock").default(0),
-  status: varchar("status", { length: 50 }).default("unpublished"),
+status: mysqlEnum("status", ["published", "unpublished", "archived"]).default("unpublished"),
   coverImage: varchar("cover_image", { length: 255 }).default(""),
   image1: varchar("image_1", { length: 255 }).default(""),
   image2: varchar("image_2", { length: 255 }).default(""),
@@ -33,7 +33,7 @@ export const bundles = mysqlTable("bundles", {
   id: int("id").autoincrement().primaryKey(),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
-  status: varchar("status", { length: 50 }).default("unpublished"),
+  status: mysqlEnum("status", ["published", "unpublished"]).default("unpublished"),
   coverImage: varchar("cover_image", { length: 255 }).default(""),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at")
