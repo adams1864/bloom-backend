@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
+import { loggingMiddleware } from "./middleware/logging.js";
 import productRoutes from "./routes/product.routes.js";
 import bundleRoutes from "./routes/bundle.routes.js";
 import orderRoutes from "./routes/order.routes.js";
@@ -23,6 +24,7 @@ const corsOptions = {
 	exposedHeaders: ["X-Total-Count"],
 };
 
+app.use(loggingMiddleware);
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
