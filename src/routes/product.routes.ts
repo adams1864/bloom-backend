@@ -3,7 +3,6 @@ import fs from "fs";
 import path from "path";
 import multer from "multer";
 import { getProducts, getProduct, createProduct, updateProduct, deleteProduct } from "../controllers/product.controller.js";
-import { requireAuth } from "../auth/auth.middleware.js";
 
 const router = express.Router();
 
@@ -35,8 +34,8 @@ const maybeUploadMedia: RequestHandler = (req, res, next) => {
 
 router.get("/", getProducts);
 router.get("/:id", getProduct);
-router.post("/", requireAuth, maybeUploadMedia, createProduct);
-router.put("/:id", requireAuth, maybeUploadMedia, updateProduct);
-router.delete("/:id", requireAuth, deleteProduct);
+router.post("/", maybeUploadMedia, createProduct);
+router.put("/:id", maybeUploadMedia, updateProduct);
+router.delete("/:id", deleteProduct);
 
 export default router;

@@ -1,14 +1,12 @@
+import "./env.js";
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import path from "path";
 import { loggingMiddleware } from "./middleware/logging.js";
 import productRoutes from "./routes/product.routes.js";
 import bundleRoutes from "./routes/bundle.routes.js";
 import orderRoutes from "./routes/order.routes.js";
 import authRoutes from "./auth/auth.routes.js";
-
-dotenv.config();
 
 const app = express();
 
