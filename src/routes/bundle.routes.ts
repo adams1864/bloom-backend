@@ -2,7 +2,6 @@ import express, { type RequestHandler } from "express";
 import fs from "fs";
 import path from "path";
 import multer from "multer";
-import { requireAuth } from "../auth/auth.middleware.js";
 import { getBundles, getBundle, createBundle, updateBundle, deleteBundle } from "../controllers/bundle.controller.js";
 
 const router = express.Router();
@@ -31,8 +30,8 @@ const maybeUploadCover: RequestHandler = (req, res, next) => {
 
 router.get("/", getBundles);
 router.get("/:id", getBundle);
-router.post("/", requireAuth, maybeUploadCover, createBundle);
-router.put("/:id", requireAuth, maybeUploadCover, updateBundle);
-router.delete("/:id", requireAuth, deleteBundle);
+router.post("/", maybeUploadCover, createBundle);
+router.put("/:id", maybeUploadCover, updateBundle);
+router.delete("/:id", deleteBundle);
 
 export default router;
