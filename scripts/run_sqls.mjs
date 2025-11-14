@@ -1,7 +1,9 @@
 import fs from 'fs/promises';
 import path from 'path';
-import mysql from 'mysql2/promise';
-import { URL } from 'url';
+import { Client } from 'pg';
+import { config as loadEnv } from 'dotenv';
+
+loadEnv({ path: path.resolve(process.cwd(), '.env'), override: true });
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -9,56 +11,136 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
-const parsed = new URL(databaseUrl);
-const user = parsed.username;
-const password = parsed.password;
-const host = parsed.hostname;
-const port = parsed.port || '3306';
-const database = parsed.pathname ? parsed.pathname.slice(1) : undefined;
-
-if (!database) {
-  console.error('No database in DATABASE_URL');
-  process.exit(1);
-}
-
 const dir = path.join(process.cwd(), 'drizzle');
 
-console.log(`Connecting to MySQL ${user}@${host}:${port}/${database}`);
-const conn = await mysql.createConnection({ host, port: Number(port), user, password, database, multipleStatements: true });
+const client = new Client({
+  connectionString: databaseUrl,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
+});
+
+function splitStatements(sqlText) {
+  const statements = [];
+  let current = '';
+  let inSingle = false;
+  let inDouble = false;
+  let dollarTag = null;
+
+  for (let i = 0; i < sqlText.length; i += 1) {
+    const char = sqlText[i];
+    const next = i + 1 < sqlText.length ? sqlText[i + 1] : '';
+
+    if (!inSingle && !inDouble && !dollarTag && char === '-' && next === '-') {
+      const end = sqlText.indexOf('\n', i + 2);
+      if (end === -1) break;
+      i = end;
+      continue;
+    }
+
+    if (!inSingle && !inDouble && !dollarTag && char === '/' && next === '*') {
+      const endComment = sqlText.indexOf('*/', i + 2);
+      if (endComment === -1) break;
+      i = endComment + 1;
+      continue;
+    }
+
+    if (!inSingle && !inDouble && char === '$') {
+      let j = i + 1;
+      while (j < sqlText.length && sqlText[j] !== '$' && /[A-Za-z0-9_]/.test(sqlText[j])) {
+        j += 1;
+      }
+      if (j < sqlText.length && sqlText[j] === '$') {
+        const tag = sqlText.slice(i, j + 1);
+        if (dollarTag && tag === dollarTag) {
+          current += tag;
+          dollarTag = null;
+          i = j;
+          continue;
+        }
+        if (!dollarTag) {
+          dollarTag = tag;
+          current += tag;
+          i = j;
+          continue;
+        }
+      }
+    }
+
+    if (!dollarTag) {
+      if (!inDouble && char === "'") {
+        if (inSingle && next === "'") {
+          current += "''";
+          i += 1;
+          continue;
+        }
+        inSingle = !inSingle;
+        current += char;
+        continue;
+      }
+      if (!inSingle && char === '"') {
+        inDouble = !inDouble;
+        current += char;
+        continue;
+      }
+    }
+
+    current += char;
+
+    if (!inSingle && !inDouble && !dollarTag && char === ';') {
+      const trimmed = current.trim();
+      if (trimmed.length > 0) {
+        statements.push(trimmed);
+      }
+      current = '';
+    }
+  }
+
+  const tail = current.trim();
+  if (tail.length > 0) {
+    statements.push(tail);
+  }
+
+  return statements;
+}
+
+console.log('Connecting to PostgreSQL database...');
+await client.connect();
 
 try {
   const files = await fs.readdir(dir);
-  const sqlFiles = files.filter(f => f.endsWith('.sql')).sort();
+  const sqlFiles = files.filter((file) => file.endsWith('.sql')).sort();
+
   for (const file of sqlFiles) {
-    const p = path.join(dir, file);
-    let sql = await fs.readFile(p, 'utf8');
-    // Remove any migration generator breakpoint markers that are not valid SQL
-    sql = sql.replace(/--\>\s*statement-breakpoint/g, ';');
-    // Ensure statements end with semicolons
-    if (!sql.trim().endsWith(';')) sql = sql.trim() + ';';
+    const filePath = path.join(dir, file);
+    let sqlText = await fs.readFile(filePath, 'utf8');
+    sqlText = sqlText.replace(/-->\s*statement-breakpoint/g, ';');
+    if (!sqlText.trim()) {
+      console.log('\n---- Skipping', file, '(empty)');
+      continue;
+    }
+
     console.log('\n---- Running', file);
-    // Split into individual statements and run one-by-one so we can skip harmless duplicates
-    const stmts = sql
-      .split(/;\s*\n|;\s*$/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    for (const stmt of stmts) {
+    const statements = splitStatements(sqlText);
+
+    for (const statement of statements) {
       try {
-        await conn.query(stmt);
+        await client.query(statement);
       } catch (err) {
-        const code = err && err.code ? err.code : null;
-        // Ignore duplicate column / table errors and continue
-        if (code === 'ER_DUP_FIELDNAME' || code === 'ER_TABLE_EXISTS_ERROR' || code === 'ER_DUP_KEYNAME') {
-          console.warn('Ignored DB error (already exists):', code, stmt.split('\n')[0]);
+        const code = err && typeof err === 'object' ? err.code : undefined;
+        if (code === '42701' || code === '42P07' || code === '23505' || code === '42710') {
+          console.warn('Ignored DB error (already exists):', code, statement.split('\n')[0]);
           continue;
         }
-        console.error('Failed to run statement in', file, err);
+        console.error('Failed to run statement in', file);
+        console.error('Statement snippet:', statement.slice(0, 200));
+        console.error(err);
         throw err;
       }
     }
+
     console.log('OK');
   }
+
   console.log('\nAll SQL files executed');
 } finally {
-  await conn.end();
+  await client.end();
 }

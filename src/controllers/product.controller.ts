@@ -145,13 +145,15 @@ function extractInsertId(result: unknown): number | null {
   if (!result) return null;
   if (Array.isArray(result)) {
     const [first] = result as Array<Record<string, unknown>>;
-    const candidate = first?.insertId;
+    const candidate = first?.insertId ?? first?.id;
     if (typeof candidate === "number" || typeof candidate === "bigint") {
       return Number(candidate);
     }
     return null;
   }
-  const candidate = (result as Record<string, unknown>).insertId;
+  const candidate =
+    (result as Record<string, unknown>).insertId ??
+    (result as Record<string, unknown>).id;
   if (typeof candidate === "number" || typeof candidate === "bigint") {
     return Number(candidate);
   }
@@ -293,7 +295,7 @@ export const createProduct = async (req: Request, res: Response) => {
       coverImage,
       image1,
       image2,
-    });
+    }).returning({ id: products.id });
 
     const insertId = extractInsertId(insertResult);
     if (!insertId) {

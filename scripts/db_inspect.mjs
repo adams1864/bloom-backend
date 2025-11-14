@@ -1,5 +1,4 @@
-import mysql from 'mysql2/promise';
-import { URL } from 'url';
+import { Client } from 'pg';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -7,42 +6,34 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
-const parsed = new URL(databaseUrl);
-const user = parsed.username;
-const password = parsed.password;
-const host = parsed.hostname;
-const port = parsed.port || '3306';
-const database = parsed.pathname ? parsed.pathname.slice(1) : undefined;
+console.log('Connecting to PostgreSQL database...');
 
-if (!database) {
-  console.error('No database in DATABASE_URL');
-  process.exit(1);
-}
-
-console.log(`Connecting to MySQL ${user}@${host}:${port}/${database}`);
+const client = new Client({
+  connectionString: databaseUrl,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
+});
 
 try {
-  const conn = await mysql.createConnection({
-    host,
-    port: Number(port),
-    user,
-    password,
-    database,
-  });
+  await client.connect();
 
-  const [tables] = await conn.query("SHOW TABLES");
+  const tablesResult = await client.query(
+    `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name`
+  );
+  const tableNames = tablesResult.rows.map((row) => row.table_name);
   console.log('Tables:');
-  console.log(tables);
+  console.log(tableNames);
 
-  for (const row of tables) {
-    const tableName = Object.values(row)[0];
+  for (const tableName of tableNames) {
     console.log('\nTable:', tableName);
-    const [cols] = await conn.query(`SHOW COLUMNS FROM \`${tableName}\``);
-    console.log(cols.map(c => ({ Field: c.Field, Type: c.Type, Null: c.Null, Key: c.Key }))); 
+    const columnsResult = await client.query(
+      `SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 ORDER BY ordinal_position`,
+      [tableName]
+    );
+    console.log(columnsResult.rows);
   }
-
-  await conn.end();
 } catch (err) {
   console.error('DB inspect failed', err);
   process.exit(1);
+} finally {
+  await client.end().catch(() => undefined);
 }

@@ -104,14 +104,16 @@ function extractInsertId(result: unknown): number | null {
 
   if (Array.isArray(result)) {
     const [first] = result as Array<Record<string, unknown>>;
-    const candidate = first?.insertId;
+    const candidate = first?.insertId ?? first?.id;
     if (typeof candidate === "number" || typeof candidate === "bigint") {
       return Number(candidate);
     }
     return null;
   }
 
-  const candidate = (result as Record<string, unknown>).insertId;
+  const candidate =
+    (result as Record<string, unknown>).insertId ??
+    (result as Record<string, unknown>).id;
   if (typeof candidate === "number" || typeof candidate === "bigint") {
     return Number(candidate);
   }
@@ -277,12 +279,15 @@ export const createBundle = async (req: Request, res: Response) => {
 
   try {
     const bundle = await db.transaction(async (tx) => {
-      const insertResult = await tx.insert(bundles).values({
+      const insertResult = await tx
+        .insert(bundles)
+        .values({
         title,
         description,
         status: normalizedStatus,
         coverImage,
-      });
+      })
+        .returning({ id: bundles.id });
 
       const bundleId = extractInsertId(insertResult);
       if (!bundleId) {

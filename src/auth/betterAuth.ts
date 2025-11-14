@@ -5,7 +5,7 @@ import { databaseSchema } from "../db/schema.js";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
-    provider: "mysql",
+    provider: "postgresql",
     schema: databaseSchema,
   }),
   user: {

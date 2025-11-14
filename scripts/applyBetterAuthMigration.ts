@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { sql } from 'drizzle-orm';
 import { db } from '../src/db/index.js';
 
 function loadSqlStatements(filePath: string){
@@ -15,7 +16,7 @@ async function applySqlFile(filePath: string){
   const statements = loadSqlStatements(filePath);
   for (const stmt of statements){
     console.log('Executing:', stmt.slice(0, 120).replace(/\n/g, ' '));
-    await db.execute(stmt);
+    await db.execute(sql.raw(stmt));
   }
 }
 
